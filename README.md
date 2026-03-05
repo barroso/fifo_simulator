@@ -1,4 +1,4 @@
-# Simulador de Fila FIFO
+# Simulador FIFO
 
 Projeto didático: simulador de fila de processamento com **todos os serviços rodando no Docker**. Frontend React para configurar testes e visualizar métricas em tempo real, backend Go consumindo Kafka, Dead Letter Queue (DLQ) e delay artificial.
 
