@@ -1,0 +1,36 @@
+.page {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.subtitle {
+  color: #555;
+  margin-bottom: 1.5rem;
+}
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.chartBlock {
+  background: #fff;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.chartBlock h2 {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+}
+.chart {
+  height: 260px;
+}
+.loading {
+  color: #666;
+}

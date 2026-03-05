@@ -1,0 +1,24 @@
+---
+description: "[fifo_simulator] Execução apenas no Docker; nenhum serviço local"
+globs: docker-compose.yml,README.md,server/**/*,frontend/**/*
+alwaysApply: false
+---
+
+# Regra deste projeto: execução apenas no Docker
+
+**Escopo:** Esta regra vale **somente para o projeto fifo_simulator** (este repositório). Não se aplica a outros projetos.
+
+Neste projeto **nenhum serviço deve rodar localmente**. Tudo precisa rodar no Docker.
+
+## Regras
+
+- **Não** subir o server com `go run`, `go build && ./server` ou equivalente fora do Docker.
+- **Não** subir o frontend com `npm run dev` ou `npm start` para uso “normal”; o front deve ser acessado via container (build + nginx).
+- **Não** rodar Kafka, Zookeeper ou outros middlewares localmente; usar apenas os containers do `docker-compose`.
+- **Comando correto** para rodar o projeto: `docker compose up --build` (ou `docker compose up -d --build`).
+- Testes, lint e build podem ser executados localmente (ex.: `go build ./...`, `npm run build`), mas **execução de serviços** (server, frontend, Kafka, etc.) deve ser sempre via Docker.
+
+## Referência
+
+- Ver [README.md](README.md) para como subir e acessar os serviços.
+- Serviços: `kafka`, `server`, `frontend` (e opcionalmente `kafka-ui`, `prometheus`, `cadvisor`, `grafana` com o perfil `monitoring`).
