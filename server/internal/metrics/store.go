@@ -5,6 +5,14 @@ import (
 	"time"
 )
 
+// LogEntry is a single line shown in the dashboard live log panel.
+type LogEntry struct {
+	Ts      time.Time `json:"ts"`
+	Node    string    `json:"node"`
+	JobID   string    `json:"job_id,omitempty"`
+	Message string    `json:"message"`
+}
+
 // Store holds in-memory metrics for the dashboard.
 type Store struct {
 	mu sync.RWMutex
@@ -26,6 +34,10 @@ type Store struct {
 	ProcessedHistory   []Point
 	MaxHistoryPoints   int
 
+	// RecentLogs is a ring buffer of the last maxLogEntries log entries.
+	RecentLogs    []LogEntry
+	maxLogEntries int
+
 	// Notify is called (non-blocking) whenever any metric changes, for real-time SSE push.
 	Notify func()
 }
@@ -39,9 +51,21 @@ type Point struct {
 // NewStore creates a metrics store with default caps.
 func NewStore() *Store {
 	return &Store{
-		MaxSamples:      1000,
+		MaxSamples:       1000,
 		MaxHistoryPoints: 500,
+		maxLogEntries:    1000,
 	}
+}
+
+// AppendLog adds a log entry to the ring buffer (thread-safe).
+func (s *Store) AppendLog(entry LogEntry) {
+	s.mu.Lock()
+	s.RecentLogs = append(s.RecentLogs, entry)
+	if len(s.RecentLogs) > s.maxLogEntries {
+		s.RecentLogs = s.RecentLogs[len(s.RecentLogs)-s.maxLogEntries:]
+	}
+	s.mu.Unlock()
+	s.notify()
 }
 
 func (s *Store) notify() {
@@ -186,6 +210,9 @@ func (s *Store) Snapshot() Snapshot {
 		throughput = float64(s.Processed) / elapsedSec
 	}
 
+	logs := make([]LogEntry, len(s.RecentLogs))
+	copy(logs, s.RecentLogs)
+
 	return Snapshot{
 		Published:     s.Published,
 		Processed:     s.Processed,
@@ -198,6 +225,7 @@ func (s *Store) Snapshot() Snapshot {
 		LatencyP95Ms:  latencyP95,
 		ThroughputRps: throughput,
 		LastEventAt:   s.LastEventAt,
+		RecentLogs:    logs,
 	}
 }
 
@@ -215,23 +243,25 @@ func (s *Store) Reset() {
 	s.QueueSizeHistory = s.QueueSizeHistory[:0]
 	s.LatencyHistory = s.LatencyHistory[:0]
 	s.ProcessedHistory = s.ProcessedHistory[:0]
+	s.RecentLogs = s.RecentLogs[:0]
 	s.StartedAt = time.Time{}
 	s.LastEventAt = time.Time{}
 }
 
 // Snapshot is the JSON shape for /api/metrics and SSE.
 type Snapshot struct {
-	Published     int64     `json:"published"`
-	Processed     int64     `json:"processed"`
-	Failed        int64     `json:"failed"`
-	DLQCount      int64     `json:"dlq_count"`
-	QueueSize     int64     `json:"queue_size"`
-	InFlight      int64     `json:"in_flight"`
-	SuccessRate   float64   `json:"success_rate"`
-	ThroughputRps float64   `json:"throughput_rps"`
-	LatencyAvgMs  int64     `json:"latency_avg_ms"`
-	LatencyP95Ms  int64     `json:"latency_p95_ms"`
-	LastEventAt   time.Time `json:"last_event_at"`
+	Published     int64      `json:"published"`
+	Processed     int64      `json:"processed"`
+	Failed        int64      `json:"failed"`
+	DLQCount      int64      `json:"dlq_count"`
+	QueueSize     int64      `json:"queue_size"`
+	InFlight      int64      `json:"in_flight"`
+	SuccessRate   float64    `json:"success_rate"`
+	ThroughputRps float64    `json:"throughput_rps"`
+	LatencyAvgMs  int64      `json:"latency_avg_ms"`
+	LatencyP95Ms  int64      `json:"latency_p95_ms"`
+	LastEventAt   time.Time  `json:"last_event_at"`
+	RecentLogs    []LogEntry `json:"recent_logs"`
 }
 
 // History returns copies of history slices for analysis API.

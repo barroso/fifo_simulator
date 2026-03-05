@@ -28,12 +28,17 @@ const (
 	eventDLQ           metricEventType = "dlq"
 	eventInFlightStart metricEventType = "in_flight_start"
 	eventInFlightEnd   metricEventType = "in_flight_end"
+	EventLog           metricEventType = "log"
 )
 
 // MetricEvent is the payload posted to /internal/event.
 type MetricEvent struct {
 	Type      metricEventType `json:"type"`
 	LatencyMs int64           `json:"latency_ms,omitempty"`
+	// fields used when Type == EventLog
+	Node    string `json:"node,omitempty"`
+	JobID   string `json:"job_id,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 // HttpReporter sends metric events to the API server over HTTP.
@@ -84,4 +89,9 @@ func (r *HttpReporter) RecordInFlightStart() {
 
 func (r *HttpReporter) RecordInFlightEnd() {
 	r.post(MetricEvent{Type: eventInFlightEnd})
+}
+
+// ReportLog sends a log entry to the API server to be shown in the dashboard log panel.
+func (r *HttpReporter) ReportLog(node, jobID, message string) {
+	r.post(MetricEvent{Type: EventLog, Node: node, JobID: jobID, Message: message})
 }

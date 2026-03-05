@@ -27,6 +27,7 @@ const defaultSnapshot: MetricsSnapshot = {
   latency_avg_ms: 0,
   latency_p95_ms: 0,
   last_event_at: '',
+  recent_logs: [],
 }
 
 export const useMetricsStore = create<MetricsState>((set) => ({

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -37,6 +38,19 @@ func main() {
 
 	retryAdapter := processor.NewRetryAdapter(prod.PublishMessages)
 	proc := processor.NewProcessor(reporter, prod, retryAdapter)
+
+	proc.LogFunc = func(_, jobID, jobType, outcome string, latencyMs int64) {
+		var msg string
+		switch outcome {
+		case "success":
+			msg = fmt.Sprintf("✓ %s processado em %dms", jobType, latencyMs)
+		case "retry":
+			msg = fmt.Sprintf("↻ %s falhou → retry", jobType)
+		case "dlq":
+			msg = fmt.Sprintf("✗ %s falhou → DLQ", jobType)
+		}
+		reporter.ReportLog(consumerID, jobID, msg)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

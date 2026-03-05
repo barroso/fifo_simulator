@@ -26,6 +26,9 @@ type Processor struct {
 	metrics metrics.Reporter
 	dlq     ProducerDLQ
 	retry   ProducerRetry
+	// LogFunc is called after each job outcome; set by the consumer entrypoint.
+	// node: container/worker id, jobID: job id, jobType: email|image, outcome: success|retry|dlq, latencyMs: only on success.
+	LogFunc func(node, jobID, jobType, outcome string, latencyMs int64)
 }
 
 // NewProcessor creates a processor with a metrics reporter and DLQ/retry publishers.
@@ -57,15 +60,20 @@ func (p *Processor) Process(ctx context.Context, job models.JobMessage, onSucces
 				log.Printf("[processor] dlq publish error for job=%s: %v", job.ID, err)
 			}
 			p.metrics.RecordDLQ()
-			onSuccess() // commit so we don't reprocess
+			if p.LogFunc != nil {
+				p.LogFunc("", job.ID, string(job.Type), "dlq", 0)
+			}
+			onSuccess()
 			return
 		}
 		log.Printf("[processor] job=%s FAILED (attempt %d/%d) → retry", job.ID, job.RetryCount, maxRetries)
-		// Re-publish for retry (keep FailSim=true so it keeps simulating failure)
 		if p.retry != nil {
 			if err := p.retry.PublishMessages(ctx, []models.JobMessage{job}, 0); err != nil {
 				log.Printf("[processor] retry publish error for job=%s: %v", job.ID, err)
 			}
+		}
+		if p.LogFunc != nil {
+			p.LogFunc("", job.ID, string(job.Type), "retry", 0)
 		}
 		onRetry()
 		return
@@ -75,6 +83,9 @@ func (p *Processor) Process(ctx context.Context, job models.JobMessage, onSucces
 	latencyMs := time.Since(job.CreatedAt).Milliseconds()
 	log.Printf("[processor] job=%s SUCCESS latency=%dms", job.ID, latencyMs)
 	p.metrics.RecordProcessed(latencyMs)
+	if p.LogFunc != nil {
+		p.LogFunc("", job.ID, string(job.Type), "success", latencyMs)
+	}
 	onSuccess()
 }
 

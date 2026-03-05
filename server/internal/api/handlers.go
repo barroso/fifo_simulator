@@ -86,6 +86,11 @@ func (s *Server) PostJobs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Metrics.RecordPublished(int64(req.Count))
+	s.Metrics.AppendLog(metrics.LogEntry{
+		Ts:      time.Now(),
+		Node:    "api",
+		Message: fmt.Sprintf("%d jobs enfileirados (tipo: %s, falha: %d%%)", req.Count, jt, req.FailPercent),
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -227,6 +232,13 @@ func (s *Server) PostInternalEvent(w http.ResponseWriter, r *http.Request) {
 		s.Metrics.RecordInFlightStart()
 	case "in_flight_end":
 		s.Metrics.RecordInFlightEnd()
+	case "log":
+		s.Metrics.AppendLog(metrics.LogEntry{
+			Ts:      time.Now(),
+			Node:    ev.Node,
+			JobID:   ev.JobID,
+			Message: ev.Message,
+		})
 	default:
 		http.Error(w, "unknown event type", http.StatusBadRequest)
 		return

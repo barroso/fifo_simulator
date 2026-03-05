@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMetricsSSE } from '../hooks/useMetricsSSE'
 import { useMetricsStore } from '../store/metricsStore'
 import { postReset } from '../api/client'
+import type { LogEntry } from '../types'
 import {
   AreaChart, Area,
   LineChart, Line,
@@ -15,6 +16,97 @@ function fmtLatency(ms: number): string {
   if (ms < 1000) return `${ms} ms`
   if (ms < 60_000) return `${(ms / 1000).toFixed(2)} s`
   return `${(ms / 60_000).toFixed(1)} min`
+}
+
+/** Maps outcome emoji prefix to a CSS class */
+function logLineClass(msg: string): string {
+  if (msg.startsWith('✓')) return styles.logSuccess
+  if (msg.startsWith('↻')) return styles.logRetry
+  if (msg.startsWith('✗')) return styles.logDlq
+  return styles.logInfo
+}
+
+function fmtLogTime(ts: string): string {
+  try {
+    return new Date(ts).toLocaleTimeString('pt-BR', { hour12: false })
+  } catch {
+    return ''
+  }
+}
+
+/** Extracts service type from a node name: "consumer-2" → "consumer", "api" → "api" */
+function serviceType(node: string): string {
+  return node.replace(/-\d+$/, '')
+}
+
+/** Capitalize first letter for display */
+function tabLabel(type: string): string {
+  return type.charAt(0).toUpperCase() + type.slice(1)
+}
+
+function LogLines({ logs }: { logs: LogEntry[] }) {
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [logs.length])
+
+  return (
+    <div className={styles.logBody}>
+      {logs.length === 0 && (
+        <span className={styles.logEmpty}>Sem entradas nesta aba…</span>
+      )}
+      {logs.map((entry, i) => (
+        <div key={i} className={`${styles.logLine} ${logLineClass(entry.message)}`}>
+          <span className={styles.logTime}>{fmtLogTime(entry.ts)}</span>
+          <span className={styles.logNode}>
+            [{entry.node}{entry.job_id ? ` · ${entry.job_id.slice(0, 8)}` : ''}]
+          </span>
+          <span className={styles.logMsg}>{entry.message}</span>
+        </div>
+      ))}
+      <div ref={bottomRef} />
+    </div>
+  )
+}
+
+function LiveLog({ logs }: { logs: LogEntry[] }) {
+  const [activeTab, setActiveTab] = useState<string>('')
+
+  // Derive unique service types preserving insertion order
+  const tabs = Array.from(new Set(logs.map((e) => serviceType(e.node))))
+
+  // If the active tab disappeared (e.g. after reset) fall back to first tab
+  const currentTab = tabs.includes(activeTab) ? activeTab : (tabs[0] ?? '')
+
+  const filtered = logs.filter((e) => serviceType(e.node) === currentTab)
+
+  return (
+    <div className={styles.logPanel}>
+      <div className={styles.logHeader}>
+        <span className={styles.logTitle}>Log em tempo real</span>
+        <span className={styles.logCount}>{filtered.length} / 1000 entradas</span>
+      </div>
+      <div className={styles.logTabs}>
+        {tabs.length === 0 && (
+          <span className={styles.logTabEmpty}>Aguardando logs…</span>
+        )}
+        {tabs.map((type) => (
+          <button
+            key={type}
+            className={`${styles.logTab} ${currentTab === type ? styles.logTabActive : ''}`}
+            onClick={() => setActiveTab(type)}
+          >
+            {tabLabel(type)}
+            <span className={styles.logTabBadge}>
+              {logs.filter((e) => serviceType(e.node) === type).length}
+            </span>
+          </button>
+        ))}
+      </div>
+      <LogLines logs={filtered} />
+    </div>
+  )
 }
 
 function LiveIndicator() {
@@ -175,6 +267,9 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Live log panel */}
+      <LiveLog logs={snap?.recent_logs ?? []} />
     </div>
   )
 }

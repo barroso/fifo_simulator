@@ -1,3 +1,10 @@
+export interface LogEntry {
+  ts: string
+  node: string
+  job_id?: string
+  message: string
+}
+
 export interface MetricsSnapshot {
   published: number
   processed: number
@@ -10,6 +17,7 @@ export interface MetricsSnapshot {
   latency_avg_ms: number
   latency_p95_ms: number
   last_event_at: string
+  recent_logs: LogEntry[]
 }
 
 export interface DLQItem {
