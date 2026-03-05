@@ -23,6 +23,7 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
+      target: api
     container_name: fifo-server
     ports:
       - "8080:8080"
@@ -31,6 +32,22 @@ services:
       HTTP_ADDR: :8080
     depends_on:
       - kafka
+    restart: on-failure
+
+  consumer:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      target: consumer
+    container_name: fifo-consumer
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      API_URL: http://server:8080
+      CONSUMER_ID: consumer-1
+      KAFKA_CONSUMER_START_DELAY: 5s
+    depends_on:
+      - kafka
+      - server
     restart: on-failure
 
   frontend:

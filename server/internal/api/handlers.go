@@ -204,6 +204,36 @@ func genID() string {
 	return hex.EncodeToString(b)
 }
 
+// PostInternalEvent receives metric events from consumer containers and applies them to the local store.
+// POST /internal/event — not exposed via nginx, only reachable inside the Docker network.
+func (s *Server) PostInternalEvent(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var ev metrics.MetricEvent
+	if err := json.NewDecoder(r.Body).Decode(&ev); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	switch ev.Type {
+	case "processed":
+		s.Metrics.RecordProcessed(ev.LatencyMs)
+	case "failed":
+		s.Metrics.RecordFailed()
+	case "dlq":
+		s.Metrics.RecordDLQ()
+	case "in_flight_start":
+		s.Metrics.RecordInFlightStart()
+	case "in_flight_end":
+		s.Metrics.RecordInFlightEnd()
+	default:
+		http.Error(w, "unknown event type", http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // RunServer starts the HTTP server with the given handlers.
 func RunServer(addr string, s *Server) error {
 	mux := http.NewServeMux()
@@ -213,5 +243,6 @@ func RunServer(addr string, s *Server) error {
 	mux.HandleFunc("/api/history", s.GetHistory)
 	mux.HandleFunc("/api/events", s.GetEvents)
 	mux.HandleFunc("/api/reset", s.PostReset)
+	mux.HandleFunc("/internal/event", s.PostInternalEvent)
 	return http.ListenAndServe(addr, CORS(mux))
 }

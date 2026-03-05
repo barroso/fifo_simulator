@@ -32,12 +32,13 @@ const consumerGroupID = "fifo-simulator-consumer"
 type Consumer struct {
 	reader  *kafka.Reader
 	proc    *processor.Processor
-	metrics *metrics.Store
+	metrics metrics.Reporter
 	onDone  func()
 }
 
 // NewConsumer creates a Kafka reader for the main topic and runs the process loop in a goroutine.
-func NewConsumer(brokers []string, proc *processor.Processor, m *metrics.Store, onDone func()) *Consumer {
+// m can be a *metrics.Store (in-process) or *metrics.HttpReporter (cross-container).
+func NewConsumer(brokers []string, proc *processor.Processor, m metrics.Reporter, onDone func()) *Consumer {
 	r := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: brokers,
 		Topic:   TopicMain,

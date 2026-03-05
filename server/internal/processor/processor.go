@@ -23,14 +23,15 @@ type ProducerRetry interface {
 
 // Processor processes a single job: delay, optional failure simulation, retry or DLQ.
 type Processor struct {
-	metrics *metrics.Store
+	metrics metrics.Reporter
 	dlq     ProducerDLQ
 	retry   ProducerRetry
 }
 
-// NewProcessor creates a processor with metrics and DLQ/retry publishers.
-func NewProcessor(metricsStore *metrics.Store, dlq ProducerDLQ, retry ProducerRetry) *Processor {
-	return &Processor{metrics: metricsStore, dlq: dlq, retry: retry}
+// NewProcessor creates a processor with a metrics reporter and DLQ/retry publishers.
+// reporter can be a *metrics.Store (in-process) or *metrics.HttpReporter (cross-container).
+func NewProcessor(reporter metrics.Reporter, dlq ProducerDLQ, retry ProducerRetry) *Processor {
+	return &Processor{metrics: reporter, dlq: dlq, retry: retry}
 }
 
 // Process runs the job: delay by type, then succeed or fail (simulated). On failure, retry or send to DLQ.

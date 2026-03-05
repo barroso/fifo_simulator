@@ -15,7 +15,6 @@ import (
 	"fifo-simulator/server/internal/kafka"
 	"fifo-simulator/server/internal/metrics"
 	"fifo-simulator/server/internal/models"
-	"fifo-simulator/server/internal/processor"
 )
 
 func main() {
@@ -35,15 +34,6 @@ func main() {
 			time.Sleep(2 * time.Second)
 		}
 	}
-	// Brief pause to let Kafka finish stabilizing after topic creation
-	consumerDelay := 3 * time.Second
-	if d := os.Getenv("KAFKA_CONSUMER_START_DELAY"); d != "" {
-		if v, err := time.ParseDuration(d); err == nil && v >= 0 {
-			consumerDelay = v
-		}
-	}
-	log.Printf("waiting %s before starting consumers", consumerDelay)
-	time.Sleep(consumerDelay)
 
 	metricsStore := metrics.NewStore()
 	dlqStore := dlq.NewStore(500)
@@ -51,14 +41,9 @@ func main() {
 	prod := kafka.NewProducer(brokerList)
 	defer prod.Close()
 
-	retryAdapter := processor.NewRetryAdapter(prod.PublishMessages)
-	proc := processor.NewProcessor(metricsStore, prod, retryAdapter)
-
+	// DLQ consumer stays in the API server since it feeds the /api/dlq endpoint.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	consumer := kafka.NewConsumer(brokerList, proc, metricsStore, nil)
-	go consumer.Run(ctx)
 
 	dlqConsumer := kafka.NewDLQConsumer(brokerList, dlqStore)
 	var wg sync.WaitGroup
@@ -66,7 +51,7 @@ func main() {
 	go dlqConsumer.Run(ctx, &wg)
 
 	enqueue := func(jobs []models.JobMessage, intervalMs int) error {
-		return prod.PublishMessages(ctx, jobs, intervalMs)
+		return prod.PublishMessages(context.Background(), jobs, intervalMs)
 	}
 
 	srv := &api.Server{
@@ -83,7 +68,8 @@ func main() {
 		}
 	}()
 
-	log.Printf("server listening on %s", httpAddr)
+	log.Printf("api server listening on %s", httpAddr)
+
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	<-sig
